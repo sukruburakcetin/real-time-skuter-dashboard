@@ -34,7 +34,7 @@ var layerControl = L.control.layers({
 var geojsonLayer;
 
 // define the suitabilityLayer variable outside of the callback function
-var noParkingZones=  $.getJSON('/static/kamu_binalari_joined_with_buffers_0_002.geojson', function(data) {
+var noParkingZones=  $.getJSON('/static/tekil_kamu.geojson', function(data) {
   console.log(data); // log the GeoJSON data
   // create a new GeoJSON layer and assign it to the suitabilityLayer variable
   noParkingZones = L.geoJSON(data, {
@@ -54,14 +54,18 @@ var noParkingZones=  $.getJSON('/static/kamu_binalari_joined_with_buffers_0_002.
 });
 
 
+
 function updateMap(){
     $.ajax({
         type: "GET",
         url: "/get_data",
         contentType: 'application/json',
         success: function(data) {
+            var intersecting_points = data.intersecting_points;
+            console.log("intersecting_points", intersecting_points[0][0][0])
+            console.log("intersecting_points", intersecting_points[0][0][1])
             // Only keep the last 100 data points
-            var features = data.map(function(point) {
+            var features = data.data.map(function(point) {
                 return {
                     "type": "Feature",
                     "geometry": {
@@ -85,10 +89,24 @@ function updateMap(){
                 }, {
                     onEachFeature: function(feature, layer) {
                         var marker = L.marker(feature.geometry.coordinates).addTo(map);
-                        marker.bindPopup(feature.properties.name);
+                        var latlng = marker.getLatLng();
+                        marker.bindPopup(feature.properties.name + '<br>Latitude: ' + latlng.lat.toFixed(6) +
+                            '<br>Longitude: ' + latlng.lng.toFixed(6) );
 
+                        // Loop through intersecting_points array and check if feature intersects
+                        for (var i = 0; i < intersecting_points.length; i++) {
+                            console.log("lat", latlng.lat)
+                            console.log("lng", latlng.lng)
+                            console.log("0: ", intersecting_points[i][0][0])
+                            console.log("1: ", intersecting_points[i][0][1])
+                            if (intersecting_points[i][0][0] === latlng.lng && intersecting_points[i][0][1] === latlng.lat) {
+                                // Bind tooltip to intersecting feature
+                                console.log("girdi")
+                                marker.bindTooltip('Intersecting feature: ' + feature.properties.name, {permanent: true}).openTooltip();
+                                break;
+                            }
+                        }
 
-                            // Remove marker after 10 seconds
                         setTimeout(function() {
                             map.removeLayer(marker);
                         }, 29500);
