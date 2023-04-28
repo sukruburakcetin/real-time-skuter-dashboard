@@ -30,19 +30,39 @@ var layerControl = L.control.layers({
     'Mapbox': mapboxStreets
 }).addTo(map);
 
+
 var geojsonLayer;
+
+// define the suitabilityLayer variable outside of the callback function
+var noParkingZones=  $.getJSON('/static/kamu_binalari_joined_with_buffers_0_002.geojson', function(data) {
+  console.log(data); // log the GeoJSON data
+  // create a new GeoJSON layer and assign it to the suitabilityLayer variable
+  noParkingZones = L.geoJSON(data, {
+    style: function(feature) {
+        var gridcode = data.properties;
+        console.log("gridcode", gridcode)
+
+      return {
+        color: '#000',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.2,
+          fillColor: 'black'
+      };
+    }
+  }).addTo(map)
+});
+
+
 function updateMap(){
     $.ajax({
         type: "GET",
         url: "/get_data",
         contentType: 'application/json',
         success: function(data) {
-
-            // Loop through each data point and create a GeoJSON Feature object
-            var features = [];
-            for (var i = 0; i < data.length; i++) {
-                var point = data[i];
-                var feature = {
+            // Only keep the last 100 data points
+            var features = data.map(function(point) {
+                return {
                     "type": "Feature",
                     "geometry": {
                         "type": "Point",
@@ -52,35 +72,53 @@ function updateMap(){
                         "name": point.durumAciklama
                     }
                 };
-                features.push(feature);
-            }
+            });
 
-                        // Clear the previous markers from the map
-            if (geojsonLayer) {
+            console.log("feature_count", features.length)
+
+            if (!geojsonLayer) {
+                // console.log("if")
+                // Create a new GeoJSON layer if it doesn't exist
+                geojsonLayer = L.geoJSON({
+                    "type": "FeatureCollection",
+                    "features": features
+                }, {
+                    onEachFeature: function(feature, layer) {
+                        var marker = L.marker(feature.geometry.coordinates).addTo(map);
+                        marker.bindPopup(feature.properties.name);
+
+
+                            // Remove marker after 10 seconds
+                        setTimeout(function() {
+                            map.removeLayer(marker);
+                        }, 29500);
+                    }
+                }).addTo(map);
+                // console.log("count if geo json: ", geojsonLayer.getLayers.length)
+            } else {
+                // console.log("else")
+                // Update the data of the existing layer
                 geojsonLayer.clearLayers();
+                geojsonLayer.addData({
+                    "type": "FeatureCollection",
+                    "features": features
+                });
             }
-
-            // Create a GeoJSON layer and add it to the map
-            geojsonLayer = L.geoJSON({
-                "type": "FeatureCollection",
-                "features": features
-            }, {
-                onEachFeature: function(feature, layer) {
-                    // Create a new marker at the feature coordinates
-                    var marker = L.marker(feature.geometry.coordinates).addTo(map);
-
-                    // Bind a popup to the marker with the feature name
-                    marker.bindPopup(feature.properties.name);
-                }
-            }).addTo(map);
         },
         error: function(error) {
             console.log("fail_return_log", error);
         }
-});
+    });
 }
+
 // Update the map initially
 updateMap();
+
 // Update the map every 30 seconds
 setInterval(updateMap, 30000);
+
+
+
+
+
 
